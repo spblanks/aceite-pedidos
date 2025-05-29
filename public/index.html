@@ -24,6 +24,12 @@
 <!-- Local onde o link vai aparecer -->
 <p id="linkArea" style="margin-top: 10px;"></p>
 
+<!-- Lista de pedidos assinados -->
+<h3 style="margin-top: 40px;">📁 Pedidos Assinados</h3>
+<div id="historicoAssinados">
+  Carregando...
+</div>
+
 <!-- Bibliotecas -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
 <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
@@ -42,7 +48,6 @@ const canvasAss = document.getElementById("assinaturaCanvas");
 const ctxAss = canvasAss.getContext("2d");
 let isDrawing = false;
 
-// Configuração da assinatura
 canvasAss.addEventListener("mousedown", () => isDrawing = true);
 canvasAss.addEventListener("mouseup", () => isDrawing = false);
 canvasAss.addEventListener("mouseleave", () => isDrawing = false);
@@ -65,7 +70,6 @@ function limparAssinatura() {
   ctxAss.clearRect(0, 0, canvasAss.width, canvasAss.height);
 }
 
-// Marca posição no PDF
 function marcarPosicao(e) {
   const container = document.getElementById("pdfContainer");
   const rect = container.getBoundingClientRect();
@@ -82,7 +86,6 @@ function marcarPosicao(e) {
   container.appendChild(marker);
 }
 
-// Carrega o PDF
 document.getElementById("uploadPDF").addEventListener("change", async function (e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -116,7 +119,6 @@ document.getElementById("uploadPDF").addEventListener("change", async function (
   reader.readAsArrayBuffer(file);
 });
 
-// Mostra o PDF na tela
 function mostrarPDF() {
   const container = document.getElementById("pdfContainer");
   container.innerHTML = "";
@@ -129,7 +131,6 @@ function mostrarPDF() {
   });
 }
 
-// Gera o link único
 async function enviarPedido() {
   const fileInput = document.getElementById("uploadPDF");
   const nome = document.getElementById("nomeCliente").value;
@@ -144,7 +145,7 @@ async function enviarPedido() {
   formData.append("nome", nome);
   formData.append("x", posX / scale);
   formData.append("y", posY / scale);
-  formData.append("data", new Date().toLocaleString()); // Adiciona data e hora
+  formData.append("data", new Date().toLocaleString());
 
   const linkArea = document.getElementById("linkArea");
   linkArea.innerHTML = "⏳ Gerando link...";
@@ -173,6 +174,32 @@ async function enviarPedido() {
     console.error("Erro ao enviar pedido:", error);
   }
 }
+
+// Carrega os pedidos assinados ao abrir a página
+async function carregarHistorico() {
+  const response = await fetch("/listar-assinados");
+  const files = await response.json();
+  const container = document.getElementById("historicoAssinados");
+  container.innerHTML = "";
+
+  if (files.length === 0) {
+    container.innerHTML = "<p>Nenhum pedido assinado encontrado.</p>";
+    return;
+  }
+
+  files.forEach(file => {
+    const div = document.createElement("div");
+    div.style.marginTop = "10px";
+    div.innerHTML = `
+      <strong>📄 ${file}</strong><br/>
+      <a href="/uploads/${file}" download="${file}">⬇️ Baixar PDF</a>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// Chama função ao carregar a página
+window.onload = carregarHistorico;
 </script>
 
 </body>
