@@ -35,10 +35,16 @@ let pedidos = {};
 app.post("/upload", upload.single("pdf"), (req, res) => {
   try {
     const id = Math.random().toString(36).substring(2);
-    const { nome, x, y, imgWidth, imgHeight } = req.body;
+    const { x, y, imgWidth, imgHeight } = req.body;
     const filePath = req.file.path;
 
-    pedidos[id] = { nome, filePath, x, y, imgWidth, imgHeight };
+    pedidos[id] = {
+      filePath,
+      x,
+      y,
+      imgWidth,
+      imgHeight
+    };
 
     res.json({ id });
   } catch (error) {
@@ -84,26 +90,26 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
-    // Adiciona nome do cliente
+    // Adiciona data e hora da assinatura
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    firstPage.drawText(pedido.nome, {
+    const dataAtual = new Date().toLocaleString();
+
+    firstPage.drawText(dataAtual, {
       x: xReal,
       y: yPdf - 20,
-      size: 12,
+      size: 10,
       font: helveticaFont,
       color: PDFLib.rgb(0, 0, 0)
     });
 
-    // Salva o novo PDF com nome do cliente
+    // Salva novo PDF
     const savedPdfBytes = await pdfDoc.save();
 
-    // Gera nome seguro para o arquivo
-    const safeName = pedido.nome.replace(/[^a-zA-Z0-9]/g, '_');
-    const signedPath = `uploads/${safeName}-assinado.pdf`;
-
+    // Gera nome do arquivo com ID (não usamos mais o nome do cliente)
+    const signedPath = `uploads/${id}-assinado.pdf`;
     fs.writeFileSync(signedPath, savedPdfBytes);
 
-    res.json({ url: `/${safeName}-assinado.pdf` });
+    res.json({ url: `/${id}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
     res.status(500).json({ error: "Erro ao inserir assinatura" });
