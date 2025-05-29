@@ -144,6 +144,7 @@ async function enviarPedido() {
   formData.append("nome", nome);
   formData.append("x", posX / scale);
   formData.append("y", posY / scale);
+  formData.append("data", new Date().toLocaleString()); // Adiciona data e hora
 
   const linkArea = document.getElementById("linkArea");
   linkArea.innerHTML = "⏳ Gerando link...";
@@ -159,10 +160,12 @@ async function enviarPedido() {
     }
 
     const data = await res.json();
-    const link = `${window.location.origin}/cliente.html?id=${data.id}`;
+    const nomeCliente = encodeURIComponent(nome);
+    const link = `${window.location.origin}/cliente.html?id=${data.id}&nome=${nomeCliente}`;
 
     linkArea.innerHTML = `
       <strong>✅ Link gerado!</strong><br/>
+      <small><strong>Data:</strong> ${formData.get("data")}</small><br/>
       <a href="${link}" target="_blank">${link}</a>
     `;
   } catch (error) {
