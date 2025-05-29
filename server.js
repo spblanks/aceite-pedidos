@@ -70,18 +70,28 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajusta escala proporcionalmente
+    // Ajuste proporcional
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
+    const yPdf = height - yReal - 40;
 
-    const yPdf = height - yReal - 40; // Ajusta Y pra base do PDF
-
+    // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
       x: xReal,
       y: yPdf,
       width: 120,
       height: 40
+    });
+
+    // Adiciona nome do cliente
+    const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    firstPage.drawText(pedido.nome, {
+      x: xReal,
+      y: yPdf - 20,
+      size: 12,
+      font: helveticaFont,
+      color: PDFLib.rgb(0, 0, 0),
     });
 
     const savedPdfBytes = await pdfDoc.save();
