@@ -5,6 +5,7 @@ const path = require("path");
 const PDFLib = require("pdf-lib");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const url = require("url");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,11 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const pedido = pedidos[id];
     if (!pedido) return res.status(404).send("Pedido não encontrado");
 
+    // Pega o NOME DO CLIENTE do link
+    const referer = req.headers.referer;
+    const parsed = url.parse(referer, true);
+    const nomeCliente = decodeURIComponent(parsed.query.nome || "Cliente");
+
     const pdfBytes = fs.readFileSync(pedido.filePath);
     const pngPath = req.file.path;
 
@@ -106,11 +112,17 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     // Salva o novo PDF
     const savedPdfBytes = await pdfDoc.save();
 
-    // Gera nome do arquivo com ID
-    const signedPath = `uploads/${id}-assinado.pdf`;
-    fs.writeFileSync(signedPath, savedPdfBytes);
+    // Gera nome seguro com base no nome do cliente
+    const safeName = nomeCliente.replace(/[^a-zA-Z0-9]/g, '_');
+    const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    res.json({ url: `/${id}-assinado.pdf` });
+    // Se já existir, impede nova assinatura
+    if (fs.existsSync(signedPath)) {
+      return res.status(400).json({ error: "Documento já foi assinado." });
+    }
+
+    fs.writeFileSync(signedPath, savedPdfBytes);
+    res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
     res.status(500).json({ error: "Erro ao inserir assinatura" });
