@@ -67,13 +67,23 @@ async function salvarAssinatura() {
   const blob = await fetch(dataUrl).then(r => r.blob());
   formData.append("assinatura", blob, "assinatura.png");
 
-  const res = await fetch(`/assinar/${pedidoId}`, {
-    method: "POST",
-    body: formData
-  });
+  try {
+    const res = await fetch(`/assinar/${pedidoId}`, {
+      method: "POST",
+      body: formData
+    });
 
-  const result = await res.json();
-  alert("Assinado! Você pode baixar o PDF aqui: " + result.url);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
+    }
+
+    const result = await res.json();
+    alert("Assinado! Você pode baixar o PDF aqui: " + result.url);
+  } catch (error) {
+    console.error("Erro ao assinar:", error);
+    alert("Erro ao enviar assinatura. Veja o console para mais detalhes.");
+  }
 }
 </script>
 
