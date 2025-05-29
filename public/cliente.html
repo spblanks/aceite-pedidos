@@ -3,20 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <title>Assine seu Pedido</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
+      max-width: 400px;
+      margin: auto;
     }
     canvas {
       border: 1px solid #ccc;
       margin-top: 10px;
       cursor: crosshair;
+      width: 100%;
+      height: auto;
     }
     .assinado {
       color: red;
       font-weight: bold;
       font-size: 16px;
+    }
+    iframe {
+      width: 100%;
+      height: 500px;
+      margin-top: 20px;
+      border: 1px solid #ddd;
     }
   </style>
 </head>
@@ -33,7 +44,11 @@
 <canvas id="canvasAssinatura" width="300" height="150"></canvas><br/>
 <button onclick="salvarAssinatura()">Enviar Assinatura</button>
 
-<iframe id="pdfViewer" style="width:100%; height:600px; margin-top:20px;"></iframe>
+<!-- Visualizador do PDF -->
+<div style="margin-top: 20px;">
+  <strong>Documento:</strong>
+  <iframe id="pdfViewer" src=""></iframe>
+</div>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
@@ -41,55 +56,91 @@ const pedidoId = urlParams.get("id");
 const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
+const pdfFrame = document.getElementById("pdfViewer");
 
-// Declara as variáveis FORA do if pra evitar o erro "canvas is not defined"
+// Variáveis do canva (disponíveis globalmente)
 const canvas = document.getElementById("canvasAssinatura");
 const ctx = canvas.getContext("2d");
 let isDrawing = false;
 
-// Verifica se já foi assinado (no localStorage)
+// Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
   aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
   document.querySelector("h2").remove();
   document.querySelector("canvas").remove();
   document.querySelector("button").remove();
 } else {
-  // Só carrega PDF e canva se NÃO estiver assinado
+  // Carrega informações do cliente
   if (nomeCliente) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
   }
 
-  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
+  // Carrega o PDF
+  pdfFrame.src = `/pedido/${pedidoId}`;
+}
 
-  canvas.addEventListener("mousedown", () => isDrawing = true);
-  canvas.addEventListener("mouseup", () => isDrawing = false);
-  canvas.addEventListener("mouseleave", () => isDrawing = false);
-  canvas.addEventListener("mousemove", draw);
+// Configuração do canva para mouse + toque
+function startDraw(e) {
+  isDrawing = true;
+  desenhar(e);
+}
+function endDraw() {
+  isDrawing = false;
+  ctx.beginPath();
+}
 
-  function draw(e) {
-    if (!isDrawing) return;
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#000";
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mouseleave", endDraw);
+canvas.addEventListener("mousemove", desenhar);
 
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  }
+// Suporte a telas de toque (celular)
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  isDrawing = true;
+  const rect = canvas.getBoundingClientRect();
+  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  e.preventDefault();
+});
+canvas.addEventListener("touchend", () => {
+  isDrawing = false;
+  ctx.beginPath();
+});
+canvas.addEventListener("touchcancel", () => {
+  isDrawing = false;
+  ctx.beginPath();
+});
+canvas.addEventListener("touchmove", (e) => {
+  if (!isDrawing) return;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  e.preventDefault();
+});
+
+function draw(e) {
+  if (!isDrawing) return;
+  const rect = canvas.getBoundingClientRect();
+  ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+}
+
+function desenhar(e) {
+  if (!isDrawing) return;
+  draw(e);
 }
 
 async function salvarAssinatura() {
-  const dataAtual = new Date().toLocaleDateString('pt-BR') + ' - ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-  // Confirma que não está assinado antes de continuar
   if (localStorage.getItem(`assinado_${pedidoId}`)) {
     alert("Documento já assinado!");
     return;
   }
 
-  // Pega assinatura do canvas
   const dataUrl = canvas.toDataURL("image/png");
   const formData = new FormData();
   const blob = await fetch(dataUrl).then(r => r.blob());
@@ -108,10 +159,8 @@ async function salvarAssinatura() {
 
     const result = await res.json();
 
-    // Marca como assinado
     localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-    // Mostra sucesso
     document.body.innerHTML = `
       <h2>✔️ Assinado!</h2>
       <p>Aceite enviado com sucesso.</p>
