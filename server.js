@@ -35,10 +35,10 @@ let pedidos = {};
 app.post("/upload", upload.single("pdf"), (req, res) => {
   try {
     const id = Math.random().toString(36).substring(2);
-    const { nome, x, y } = req.body;
+    const { nome, x, y, imgWidth, imgHeight } = req.body;
     const filePath = req.file.path;
 
-    pedidos[id] = { nome, filePath, x, y };
+    pedidos[id] = { nome, filePath, x, y, imgWidth, imgHeight };
 
     res.json({ id });
   } catch (error) {
@@ -68,11 +68,18 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
 
     const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
     const firstPage = pdfDoc.getPage(0);
+    const { width, height } = firstPage.getSize();
+
+    // Ajusta escala proporcionalmente
+    const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
+    const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
+
+    const yPdf = height - yReal - 40; // Ajusta Y pra base do PDF
 
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
-      x: parseFloat(pedido.x),
-      y: parseFloat(pedido.y),
+      x: xReal,
+      y: yPdf,
       width: 120,
       height: 40
     });
@@ -81,7 +88,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const signedPath = `uploads/${id}-assinado.pdf`;
     fs.writeFileSync(signedPath, savedPdfBytes);
 
-    res.json({ url: `https://seu-projeto.onrender.com/uploads/${id}-assinado.pdf`  });
+    res.json({ url: `/uploads/${id}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
     res.status(500).json({ error: "Erro ao inserir assinatura" });
