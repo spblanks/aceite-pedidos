@@ -1,193 +1,92 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>Criar Novo Pedido</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-
-<h2>Criar Novo Pedido</h2>
-
-<label>Nome do Cliente:</label><br/>
-<input type="text" id="nomeCliente"/><br/><br/>
-
-<label>Upload do Pedido (PDF):</label><br/>
-<input type="file" id="uploadPDF" accept="application/pdf"/><br/><br/>
-
-<div id="pdfContainer" onclick="marcarPosicao(event)">Clique no PDF para marcar onde a assinatura deve ir</div>
-
-<button onclick="enviarPedido()">Gerar Link</button>
-
-<!-- Local onde o link vai aparecer -->
-<p id="linkArea" style="margin-top: 10px;"></p>
-
-<!-- Lista de pedidos assinados -->
-<h3 style="margin-top: 40px;">📁 Pedidos Assinados</h3>
-<div id="historicoAssinados">Carregando...</div>
-
-<!-- Bibliotecas -->
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
-<script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
-
-<script>
-// Fix para o aviso do pdf.js
-if (typeof pdfjsLib !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+* {
+  box-sizing: border-box;
 }
 
-let pdfPages = [];
-let posX = 0, posY = 0;
-let scale = 1.5;
-
-function marcarPosicao(e) {
-  const container = document.getElementById("pdfContainer");
-  const rect = container.getBoundingClientRect();
-  const img = container.querySelector("img");
-
-  if (!img) return;
-
-  // Coordenadas relativas à imagem
-  posX = e.clientX - rect.left;
-  posY = e.clientY - rect.top;
-
-  const oldMarker = document.querySelector(".marker");
-  if (oldMarker) oldMarker.remove();
-
-  const marker = document.createElement("div");
-  marker.className = "marker";
-  marker.style.left = `${posX}px`;
-  marker.style.top = `${posY}px`;
-  container.appendChild(marker);
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  max-width: 960px;
+  margin: auto;
+  background-color: #fff;
+  color: #333;
 }
 
-document.getElementById("uploadPDF").addEventListener("change", async function (e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async function () {
-    const typedArray = new Uint8Array(reader.result);
-    const loadingTask = pdfjsLib.getDocument({ data: typedArray });
-    const pdf = await loadingTask.promise;
-
-    pdfPages = [];
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-
-      await page.render({
-        canvasContext: context,
-        viewport
-      }).promise;
-
-      pdfPages.push(canvas.toDataURL());
-    }
-
-    mostrarPDF();
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-function mostrarPDF() {
-  const container = document.getElementById("pdfContainer");
-  container.innerHTML = "";
-
-  pdfPages.forEach((imgSrc, index) => {
-    const img = document.createElement("img");
-    img.src = imgSrc;
-    img.style.marginBottom = "10px";
-    container.appendChild(img);
-  });
+/* Cabeçalho */
+h2, h3 {
+  color: #2c3e50;
 }
 
-async function enviarPedido() {
-  const fileInput = document.getElementById("uploadPDF");
-  const nome = document.getElementById("nomeCliente").value;
-
-  if (!fileInput.files.length || !nome || !posX || !posY) {
-    alert("Preencha todos os campos e marque a posição da assinatura.");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("pdf", fileInput.files[0]);
-  formData.append("nome", nome);
-
-  const img = document.getElementById("pdfContainer").querySelector("img");
-  if (!img) {
-    alert("Nenhum PDF carregado.");
-    return;
-  }
-
-  const imgWidth = img.clientWidth;
-  const imgHeight = img.clientHeight;
-
-  formData.append("x", posX);
-  formData.append("y", posY);
-  formData.append("imgWidth", imgWidth);
-  formData.append("imgHeight", imgHeight);
-  formData.append("data", new Date().toLocaleString());
-
-  const linkArea = document.getElementById("linkArea");
-  linkArea.innerHTML = "⏳ Gerando link...";
-
-  try {
-    const res = await fetch("/upload", {
-      method: "POST",
-      body: formData
-    });
-
-    if (!res.ok) {
-      throw new Error(`Erro HTTP: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const nomeCliente = encodeURIComponent(nome);
-    const link = `${window.location.origin}/cliente.html?id=${data.id}&nome=${nomeCliente}`;
-
-    linkArea.innerHTML = `
-      <strong>✅ Link gerado!</strong><br/>
-      <small><strong>Data:</strong> ${formData.get("data")}</small><br/>
-      <a href="${link}" target="_blank">${link}</a>
-    `;
-  } catch (error) {
-    linkArea.innerHTML = `<span style="color: red;">❌ Falha ao gerar link: ${error.message}</span>`;
-    console.error("Erro ao enviar pedido:", error);
-  }
+/* Container do PDF */
+#pdfContainer {
+  margin-top: 20px;
+  position: relative;
+  border: 1px solid #ddd;
+  min-height: 200px;
+  background-color: #f9f9f9;
+  padding: 10px;
+  cursor: pointer;
 }
 
-// Carrega os pedidos assinados ao abrir a página
-async function carregarHistorico() {
-  const response = await fetch("/listar-assinados");
-  const files = await response.json();
-  const container = document.getElementById("historicoAssinados");
-  container.innerHTML = "";
-
-  if (files.length === 0) {
-    container.innerHTML = "<p>Nenhum pedido assinado encontrado.</p>";
-    return;
-  }
-
-  files.forEach(file => {
-    const div = document.createElement("div");
-    div.style.marginTop = "10px";
-    div.innerHTML = `
-      <strong>📄 ${file}</strong><br/>
-      <a href="/uploads/${file}" download="${file}">⬇️ Baixar PDF</a>
-    `;
-    container.appendChild(div);
-  });
+/* Marca da assinatura */
+.marker {
+  position: absolute;
+  width: 120px;
+  height: 40px;
+  border: 2px dashed red;
+  pointer-events: none;
 }
 
-// Chama função ao carregar a página
-window.onload = carregarHistorico;
-</script>
+/* Canvas de assinatura */
+canvas#assinaturaCanvas {
+  border: 1px solid #ccc;
+  margin-top: 10px;
+  cursor: crosshair;
+}
 
-</body>
-</html>
+/* Link gerado */
+#linkArea {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+#linkArea a {
+  color: #007bff;
+  word-break: break-all;
+  text-decoration: underline;
+}
+
+/* Botões */
+button {
+  margin-right: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #007bff;
+  color: white;
+  border-radius: 4px;
+}
+button:hover {
+  background-color: #0056b3;
+}
+
+/* Histórico de assinaturas */
+#historicoAssinados {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 5px;
+  font-size: 14px;
+  margin-top: 20px;
+}
+#historicoAssinados strong {
+  color: #333;
+}
+#historicoAssinados a {
+  color: #007bff;
+  text-decoration: none;
+}
+#historicoAssinados a:hover {
+  text-decoration: underline;
+}
