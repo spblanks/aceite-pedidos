@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = "uploads/";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir); // Cria a pasta uploads automaticamente
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir); // Cria uploads automaticamente
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -86,6 +86,17 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     console.error("Erro no /assinar:", error);
     res.status(500).json({ error: "Erro ao inserir assinatura" });
   }
+});
+
+// Nova rota: listar todos os PDFs assinados
+app.get("/listar-assinados", (req, res) => {
+  const dir = path.join(__dirname, "uploads");
+  fs.readdir(dir, (err, files) => {
+    if (err) return res.status(500).json({ error: "Erro ao ler diretório" });
+
+    const pdfsAssinados = files.filter(f => f.includes("-assinado.pdf"));
+    res.json(pdfsAssinados);
+  });
 });
 
 // Inicia o servidor
