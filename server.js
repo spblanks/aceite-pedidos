@@ -7,30 +7,44 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
+// Configuração de upload
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = "uploads/";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir); // Cria a pasta uploads automaticamente
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+const upload = multer({ storage });
+
+// Middlewares
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-const upload = multer({ storage });
-
+// Banco de dados temporário em memória
 let pedidos = {};
 
 // Upload do PDF com dados do cliente
 app.post("/upload", upload.single("pdf"), (req, res) => {
-  const id = Math.random().toString(36).substring(2);
-  const { nome, x, y } = req.body;
-  const filePath = req.file.path;
+  try {
+    const id = Math.random().toString(36).substring(2);
+    const { nome, x, y } = req.body;
+    const filePath = req.file.path;
 
-  pedidos[id] = { nome, filePath, x, y };
+    pedidos[id] = { nome, filePath, x, y };
 
-  res.json({ id });
+    res.json({ id });
+  } catch (error) {
+    console.error("Erro no /upload:", error);
+    res.status(500).json({ error: "Erro ao processar o upload" });
+  }
 });
 
 // Envia o PDF original para o cliente
@@ -44,29 +58,37 @@ app.get("/pedido/:id", (req, res) => {
 
 // Recebe a assinatura e insere no PDF
 app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
-  const { id } = req.params;
-  const pedido = pedidos[id];
-  if (!pedido) return res.status(404).send("Pedido não encontrado");
+  try {
+    const { id } = req.params;
+    const pedido = pedidos[id];
+    if (!pedido) return res.status(404).send("Pedido não encontrado");
 
-  const pdfBytes = fs.readFileSync(pedido.filePath);
-  const pngPath = req.file.path;
+    const pdfBytes = fs.readFileSync(pedido.filePath);
+    const pngPath = req.file.path;
 
-  const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-  const firstPage = pdfDoc.getPage(0);
+    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+    const firstPage = pdfDoc.getPage(0);
 
-  const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
-  firstPage.drawImage(pngImage, {
-    x: parseFloat(pedido.x),
-    y: parseFloat(pedido.y),
-    width: 120,
-    height: 40
-  });
+    const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
+    firstPage.drawImage(pngImage, {
+      x: parseFloat(pedido.x),
+      y: parseFloat(pedido.y),
+      width: 120,
+      height: 40
+    });
 
-  const savedPdfBytes = await pdfDoc.save();
-  const signedPath = `uploads/${id}-assinado.pdf`;
-  fs.writeFileSync(signedPath, savedPdfBytes);
+    const savedPdfBytes = await pdfDoc.save();
+    const signedPath = `uploads/${id}-assinado.pdf`;
+    fs.writeFileSync(signedPath, savedPdfBytes);
 
-  res.json({ url: `http://localhost:3000/uploads/${id}-assinado.pdf` });
+    res.json({ url: `https://seu-projeto.onrender.com/uploads/${id}-assinado.pdf`  });
+  } catch (error) {
+    console.error("Erro no /assinar:", error);
+    res.status(500).json({ error: "Erro ao inserir assinatura" });
+  }
 });
 
-app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
+// Inicia o servidor
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});
