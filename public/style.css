@@ -1,17 +1,33 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+}
+
 body {
   font-family: Arial, sans-serif;
   padding: 20px;
   max-width: 960px;
   margin: auto;
+  background-color: #fff;
+  color: #333;
 }
 
+/* Cabeçalho */
+h2, h3 {
+  color: #2c3e50;
+}
+
+/* Container do PDF */
 #pdfContainer {
   margin-top: 20px;
   position: relative;
   border: 1px solid #ddd;
   min-height: 200px;
+  background-color: #f9f9f9;
+  padding: 10px;
 }
 
+/* Marca da assinatura */
 .marker {
   position: absolute;
   width: 120px;
@@ -20,6 +36,14 @@ body {
   pointer-events: none;
 }
 
+/* Canvas de assinatura */
+canvas#assinaturaCanvas {
+  border: 1px solid #ccc;
+  margin-top: 10px;
+  cursor: crosshair;
+}
+
+/* Link gerado */
 #linkArea {
   margin-top: 10px;
   font-size: 14px;
@@ -27,7 +51,46 @@ body {
 }
 
 #linkArea a {
-  color: #3498db;
+  color: #007bff;
   word-break: break-all;
+  text-decoration: underline;
+}
+
+/* Botões */
+button {
+  margin-right: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #007bff;
+  color: white;
+  border-radius: 4px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+/* Histórico de assinaturas */
+#historicoAssinados {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 5px;
+  font-size: 14px;
+  margin-top: 20px;
+}
+
+#historicoAssinados strong {
+  color: #333;
+}
+
+#historicoAssinados a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+#historicoAssinados a:hover {
   text-decoration: underline;
 }
