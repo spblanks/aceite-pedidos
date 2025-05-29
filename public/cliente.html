@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Assine seu Pedido</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin-top: 10px; cursor: crosshair; }
+  </style>
+</head>
+<body>
+
+<h2>Assine seu pedido</h2>
+
+<canvas id="canvasAssinatura" width="300" height="150"></canvas><br/>
+<button onclick="salvarAssinatura()">Enviar Assinatura</button>
+
+<iframe id="pdfViewer" style="width:100%; height:600px; margin-top:20px;"></iframe>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const pedidoId = urlParams.get("id");
+
+document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
+
+async function salvarAssinatura() {
+  const canvas = document.getElementById("canvasAssinatura");
+  const dataUrl = canvas.toDataURL("image/png");
+
+  const formData = new FormData();
+  const blob = await fetch(dataUrl).then(r => r.blob());
+  formData.append("assinatura", blob, "assinatura.png");
+
+  const res = await fetch(`/assinar/${pedidoId}`, {
+    method: "POST",
+    body: formData
+  });
+
+  const result = await res.json();
+  alert("Assinado! Você pode baixar o PDF aqui: " + result.url);
+}
+</script>
+
+</body>
+</html>

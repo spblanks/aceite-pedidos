@@ -1,0 +1,19 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+#pdfContainer {
+  margin-top: 20px;
+  position: relative;
+  border: 1px solid #ddd;
+  min-height: 200px;
+}
+
+.marker {
+  position: absolute;
+  width: 120px;
+  height: 40px;
+  border: 2px dashed red;
+  pointer-events: none;
+}

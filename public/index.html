@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Criar Pedido</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<h2>Criar Novo Pedido</h2>
+
+<label>Nome do Cliente:</label><br/>
+<input type="text" id="nomeCliente"/><br/><br/>
+
+<label>Upload do Pedido (PDF):</label><br/>
+<input type="file" id="uploadPDF" accept="application/pdf"/><br/><br/>
+
+<div id="pdfContainer" onclick="marcarPosicao(event)">Clique no PDF para marcar onde a assinatura deve ir</div>
+
+<canvas id="assinaturaCanvas" width="300" height="150"></canvas>
+<button onclick="limparAssinatura()">Limpar Assinatura</button>
+<button onclick="enviarPedido()">Gerar Link</button>
+
+<p id="linkArea"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
+<script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
+<script>
+let pdfPages = [];
+let posX = 0, posY = 0;
+let scale = 1.5;
+
+const canvasAss = document.getElementById("assinaturaCanvas");
+const ctxAss = canvasAss.getContext("2d");
+let isDrawing = false;
+
+canvasAss.addEventListener("mousedown", () => isDrawing = true);
+canvasAss.addEventListener("mouseup", () => isDrawing = false);
+canvasAss.addEventListener("mouseleave", () => isDrawing = false);
+canvasAss.addEventListener("mousemove", desenhar);
+
+function desenhar(e) {
+  if (!isDrawing) return;
+  ctxAss.lineWidth = 2;
+  ctxAss.lineCap = "round";
+  ctxAss.strokeStyle = "#000";
+
+  const rect = canvasAss.getBoundingClientRect();
+  ctxAss.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+  ctxAss.stroke();
+  ctxAss.beginPath();
+  ctxAss.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+}
+
+function limparAssinatura() {
+  ctxAss.clearRect(0, 0, canvasAss.width, canvasAss.height);
+}
+
+function marcarPosicao(e) {
+  const container = document.getElementById("pdfContainer");
+  const rect = container.getBoundingClientRect();
+  posX = e.clientX - rect.left;
+  posY = e.clientY - rect.top;
+
+  const oldMarker = document.querySelector(".marker");
+  if (oldMarker) oldMarker.remove();
+
+  const marker = document.createElement("div");
+  marker.className = "marker";
+  marker.style.left = `${posX}px`;
+  marker.style.top = `${posY}px`;
+  container.appendChild(marker);
+}
+
+document.getElementById("uploadPDF").addEventListener("change", async function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function () {
+    const typedArray = new Uint8Array(reader.result);
+    const loadingTask = pdfjsLib.getDocument({ data: typedArray });
+    const pdf = await loadingTask.promise;
+
+    pdfPages = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({
+        canvasContext: context,
+        viewport
+      }).promise;
+
+      pdfPages.push(canvas.toDataURL());
+    }
+
+    mostrarPDF();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function mostrarPDF() {
+  const container = document.getElementById("pdfContainer");
+  container.innerHTML = "";
+
+  pdfPages.forEach((imgSrc, index) => {
+    const img = document.createElement("img");
+    img.src = imgSrc;
+    img.style.marginBottom = "10px";
+    container.appendChild(img);
+  });
+}
+
+async function enviarPedido() {
+  const fileInput = document.getElementById("uploadPDF");
+  const nome = document.getElementById("nomeCliente").value;
+  if (!fileInput.files.length || !nome || !posX || !posY) {
+    alert("Preencha todos os campos e marque a posição da assinatura.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("pdf", fileInput.files[0]);
+  formData.append("nome", nome);
+  formData.append("x", posX / scale);
+  formData.append("y", posY / scale);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await res.json();
+  const link = `http://localhost:3000/cliente.html?id=${data.id}`;
+  document.getElementById("linkArea").innerHTML = `<strong>Link do pedido:</strong> <a href="${link}" target="_blank">${link}</a>`;
+}
+</script>
+
+</body>
+</html>
