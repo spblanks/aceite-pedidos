@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Assine seu Pedido</title>
+  <title>Assine seu Aceite do Pedido</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -15,8 +15,7 @@
       border: 1px solid #ccc;
       margin-top: 10px;
       cursor: crosshair;
-      width: 100%;
-      height: auto;
+      touch-action: none;
     }
     .assinado {
       color: red;
@@ -28,6 +27,21 @@
       height: 500px;
       margin-top: 20px;
       border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      margin-top: 10px;
+      margin-right: 10px;
+      padding: 10px 15px;
+      font-size: 14px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
@@ -39,16 +53,13 @@
 <!-- Mostra o nome do cliente -->
 <p id="infoCliente"></p>
 
-<h2>Assine seu pedido</h2>
+<h2>Assine o aceite do pedido</h2>
 
 <canvas id="canvasAssinatura" width="300" height="150"></canvas><br/>
 <button onclick="salvarAssinatura()">Enviar Assinatura</button>
+<button onclick="limparAssinatura()">Limpar Assinatura</button>
 
-<!-- Visualizador do PDF -->
-<div style="margin-top: 20px;">
-  <strong>Documento:</strong>
-  <iframe id="pdfViewer" src=""></iframe>
-</div>
+<iframe id="pdfViewer" src=""></iframe>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
@@ -56,51 +67,41 @@ const pedidoId = urlParams.get("id");
 const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
-const pdfFrame = document.getElementById("pdfViewer");
 
-// Variáveis do canva (disponíveis globalmente)
-const canvas = document.getElementById("canvasAssinatura");
-const ctx = canvas.getContext("2d");
-let isDrawing = false;
-
-// Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
   aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
   document.querySelector("h2").remove();
   document.querySelector("canvas").remove();
-  document.querySelector("button").remove();
+  document.querySelectorAll("button").forEach(b => b.remove());
 } else {
-  // Carrega informações do cliente
   if (nomeCliente) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
   }
 
-  // Carrega o PDF
-  pdfFrame.src = `/pedido/${pedidoId}`;
+  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
 }
 
-// Configuração do canva para mouse + toque
-function startDraw(e) {
-  isDrawing = true;
-  desenhar(e);
-}
-function endDraw() {
-  isDrawing = false;
-  ctx.beginPath();
+const canvas = document.getElementById("canvasAssinatura");
+const ctx = canvas.getContext("2d");
+ctx.lineCap = "round";
+ctx.lineWidth = 2;
+
+let isDrawing = false;
+
+function getCanvasOffset(e) {
+  return canvas.getBoundingClientRect();
 }
 
-canvas.addEventListener("mousedown", startDraw);
-canvas.addEventListener("mouseup", endDraw);
-canvas.addEventListener("mouseleave", endDraw);
+// Eventos do mouse
+canvas.addEventListener("mousedown", () => isDrawing = true);
+canvas.addEventListener("mouseup", () => { isDrawing = false; ctx.beginPath(); });
+canvas.addEventListener("mouseleave", () => { isDrawing = false; ctx.beginPath(); });
 canvas.addEventListener("mousemove", desenhar);
 
-// Suporte a telas de toque (celular)
+// Eventos de toque (para celular)
 canvas.addEventListener("touchstart", (e) => {
-  const touch = e.touches[0];
   isDrawing = true;
-  const rect = canvas.getBoundingClientRect();
-  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-  e.preventDefault();
+  desenharTouch(e);
 });
 canvas.addEventListener("touchend", () => {
   isDrawing = false;
@@ -110,29 +111,29 @@ canvas.addEventListener("touchcancel", () => {
   isDrawing = false;
   ctx.beginPath();
 });
-canvas.addEventListener("touchmove", (e) => {
-  if (!isDrawing) return;
-  const touch = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-  e.preventDefault();
-});
+canvas.addEventListener("touchmove", desenharTouch);
 
-function draw(e) {
+function desenhar(e) {
   if (!isDrawing) return;
-  const rect = canvas.getBoundingClientRect();
+  const rect = getCanvasOffset();
   ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
 }
 
-function desenhar(e) {
+function desenharTouch(e) {
   if (!isDrawing) return;
-  draw(e);
+  const touch = e.touches[0];
+  const rect = getCanvasOffset();
+  ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+}
+
+function limparAssinatura() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
 async function salvarAssinatura() {
