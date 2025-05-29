@@ -76,7 +76,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajuste proporcional da posição
+    // Ajuste proporcional da posição marcada pelo criador do pedido
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
     const yPdf = height - yReal - 40;
@@ -90,7 +90,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
-    // Adiciona data e hora formatados
+    // Adiciona data/hora da assinatura
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
     const agora = new Date();
     const dataFormatada = `${agora.getDate().toString().padStart(2, '0')}/${(agora.getMonth()+1).toString().padStart(2, '0')}/${agora.getFullYear()} - ${agora.getHours().toString().padStart(2, '0')}:${agora.getMinutes().toString().padStart(2, '0')}`;
@@ -106,7 +106,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     // Salva o novo PDF
     const savedPdfBytes = await pdfDoc.save();
 
-    // Gera o arquivo final
+    // Gera nome do arquivo com ID
     const signedPath = `uploads/${id}-assinado.pdf`;
     fs.writeFileSync(signedPath, savedPdfBytes);
 
