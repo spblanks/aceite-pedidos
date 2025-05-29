@@ -24,9 +24,16 @@
 <!-- Local onde o link vai aparecer -->
 <p id="linkArea" style="margin-top: 10px;"></p>
 
+<!-- Bibliotecas -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
 <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
+
 <script>
+// Fix para o aviso do pdf.js
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
+}
+
 let pdfPages = [];
 let posX = 0, posY = 0;
 let scale = 1.5;
@@ -35,6 +42,7 @@ const canvasAss = document.getElementById("assinaturaCanvas");
 const ctxAss = canvasAss.getContext("2d");
 let isDrawing = false;
 
+// Configuração da assinatura
 canvasAss.addEventListener("mousedown", () => isDrawing = true);
 canvasAss.addEventListener("mouseup", () => isDrawing = false);
 canvasAss.addEventListener("mouseleave", () => isDrawing = false);
@@ -57,6 +65,7 @@ function limparAssinatura() {
   ctxAss.clearRect(0, 0, canvasAss.width, canvasAss.height);
 }
 
+// Marca posição no PDF
 function marcarPosicao(e) {
   const container = document.getElementById("pdfContainer");
   const rect = container.getBoundingClientRect();
@@ -73,6 +82,7 @@ function marcarPosicao(e) {
   container.appendChild(marker);
 }
 
+// Carrega o PDF
 document.getElementById("uploadPDF").addEventListener("change", async function (e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -106,6 +116,7 @@ document.getElementById("uploadPDF").addEventListener("change", async function (
   reader.readAsArrayBuffer(file);
 });
 
+// Mostra o PDF na tela
 function mostrarPDF() {
   const container = document.getElementById("pdfContainer");
   container.innerHTML = "";
@@ -118,6 +129,7 @@ function mostrarPDF() {
   });
 }
 
+// Gera o link único
 async function enviarPedido() {
   const fileInput = document.getElementById("uploadPDF");
   const nome = document.getElementById("nomeCliente").value;
@@ -142,16 +154,20 @@ async function enviarPedido() {
       body: formData
     });
 
+    if (!res.ok) {
+      throw new Error(`Erro HTTP: ${res.status}`);
+    }
+
     const data = await res.json();
-    const link = window.location.origin + `/cliente.html?id=${data.id}`;
+    const link = `${window.location.origin}/cliente.html?id=${data.id}`;
 
     linkArea.innerHTML = `
       <strong>✅ Link gerado!</strong><br/>
       <a href="${link}" target="_blank">${link}</a>
     `;
   } catch (error) {
-    linkArea.innerHTML = `<span style="color: red;">❌ Erro ao gerar link.</span>`;
-    console.error(error);
+    linkArea.innerHTML = `<span style="color: red;">❌ Falha ao gerar link: ${error.message}</span>`;
+    console.error("Erro ao enviar pedido:", error);
   }
 }
 </script>
