@@ -57,7 +57,7 @@ app.get("/pedido/:id", (req, res) => {
 });
 
 // Recebe a assinatura e insere no PDF
-app.post("/assinar/:id", upload.single("assinatura"), async (req, file, res) => {
+app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
     const pedido = pedidos[id];
@@ -70,10 +70,10 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, file, res) => 
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajuste proporcional da posição da assinatura
+    // Ajuste proporcional da posição
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
-    const yPdf = height - yReal - 40; // Ajusta Y para sistema do PDF
+    const yPdf = height - yReal - 40;
 
     // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
@@ -84,7 +84,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, file, res) => 
       height: 40
     });
 
-    // Adiciona nome do cliente como texto no PDF
+    // Adiciona nome do cliente
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
     firstPage.drawText(pedido.nome, {
       x: xReal,
@@ -94,14 +94,13 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, file, res) => 
       color: PDFLib.rgb(0, 0, 0)
     });
 
-    // Salva o novo PDF
+    // Salva o novo PDF com nome do cliente
     const savedPdfBytes = await pdfDoc.save();
 
-    // Gera o nome do arquivo com o nome do cliente
-    const safeName = pedido.nome.replace(/[^a-zA-Z0-9]/g, '_'); // Remove caracteres inválidos
+    // Gera nome seguro para o arquivo
+    const safeName = pedido.nome.replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    // Salva o arquivo
     fs.writeFileSync(signedPath, savedPdfBytes);
 
     res.json({ url: `/${safeName}-assinado.pdf` });
@@ -116,7 +115,6 @@ app.get("/listar-assinados", (req, res) => {
   const dir = path.join(__dirname, "uploads");
   fs.readdir(dir, (err, files) => {
     if (err) return res.status(500).json({ error: "Erro ao ler diretório" });
-
     const pdfsAssinados = files.filter(f => f.includes("-assinado.pdf"));
     res.json(pdfsAssinados);
   });
