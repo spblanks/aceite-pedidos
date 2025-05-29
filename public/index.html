@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>Criar Novo Pedido de Aceite</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<h2>Criar Novo Pedido de Aceite</h2>
+<h2>Criar Novo Pedido</h2>
 
 <label>Nome do Cliente:</label><br/>
 <input type="text" id="nomeCliente"/><br/><br/>
@@ -17,14 +18,13 @@
 
 <div id="pdfContainer" onclick="marcarPosicao(event)">Clique no PDF para marcar onde a assinatura deve ir</div>
 
-<canvas id="assinaturaCanvas" width="300" height="150"></canvas>
-<button onclick="limparAssinatura()">Limpar Assinatura</button>
+<!-- Botão Gerar Link -->
 <button onclick="enviarPedido()">Gerar Link</button>
 
 <!-- Local onde o link vai aparecer -->
 <p id="linkArea" style="margin-top: 10px;"></p>
 
-<!-- Lista de pedidos assinados -->
+<!-- Histórico mobile-friendly -->
 <h3 style="margin-top: 40px;">📁 Pedidos Assinados</h3>
 <div id="historicoAssinados">Carregando...</div>
 
@@ -33,7 +33,7 @@
 <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
 
 <script>
-// Fix para o aviso do pdf.js
+// Fix para pdf.js
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
 }
@@ -41,52 +41,6 @@ if (typeof pdfjsLib !== 'undefined') {
 let pdfPages = [];
 let posX = 0, posY = 0;
 let scale = 1.5;
-
-const canvasAss = document.getElementById("assinaturaCanvas");
-const ctxAss = canvasAss.getContext("2d");
-let isDrawing = false;
-
-canvasAss.addEventListener("mousedown", () => isDrawing = true);
-canvasAss.addEventListener("mouseup", () => isDrawing = false);
-canvasAss.addEventListener("mouseleave", () => isDrawing = false);
-canvasAss.addEventListener("mousemove", desenhar);
-
-function desenhar(e) {
-  if (!isDrawing) return;
-  ctxAss.lineWidth = 2;
-  ctxAss.lineCap = "round";
-  ctxAss.strokeStyle = "#000";
-
-  const rect = canvasAss.getBoundingClientRect();
-  ctxAss.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-  ctxAss.stroke();
-  ctxAss.beginPath();
-  ctxAss.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-}
-
-function limparAssinatura() {
-  ctxAss.clearRect(0, 0, canvasAss.width, canvasAss.height);
-}
-
-function marcarPosicao(e) {
-  const container = document.getElementById("pdfContainer");
-  const rect = container.getBoundingClientRect();
-  const img = container.querySelector("img");
-
-  if (!img) return;
-
-  posX = e.clientX - rect.left;
-  posY = e.clientY - rect.top;
-
-  const oldMarker = document.querySelector(".marker");
-  if (oldMarker) oldMarker.remove();
-
-  const marker = document.createElement("div");
-  marker.className = "marker";
-  marker.style.left = `${posX}px`;
-  marker.style.top = `${posY}px`;
-  container.appendChild(marker);
-}
 
 document.getElementById("uploadPDF").addEventListener("change", async function (e) {
   const file = e.target.files[0];
@@ -128,9 +82,31 @@ function mostrarPDF() {
   pdfPages.forEach((imgSrc, index) => {
     const img = document.createElement("img");
     img.src = imgSrc;
+    img.style.maxWidth = "100%";
     img.style.marginBottom = "10px";
     container.appendChild(img);
   });
+}
+
+function marcarPosicao(e) {
+  const container = document.getElementById("pdfContainer");
+  const rect = container.getBoundingClientRect();
+  const img = container.querySelector("img");
+
+  if (!img) return;
+
+  // Coordenadas relativas à imagem
+  posX = e.clientX - rect.left;
+  posY = e.clientY - rect.top;
+
+  const oldMarker = document.querySelector(".marker");
+  if (oldMarker) oldMarker.remove();
+
+  const marker = document.createElement("div");
+  marker.className = "marker";
+  marker.style.left = `${posX}px`;
+  marker.style.top = `${posY}px`;
+  container.appendChild(marker);
 }
 
 async function enviarPedido() {
@@ -189,7 +165,7 @@ async function enviarPedido() {
   }
 }
 
-// Carrega os pedidos assinados ao abrir a página
+// Carrega histórico dos PDFs assinados
 async function carregarHistorico() {
   const response = await fetch("/listar-assinados");
   const files = await response.json();
@@ -204,15 +180,18 @@ async function carregarHistorico() {
   files.forEach(file => {
     const div = document.createElement("div");
     div.style.marginTop = "10px";
+    div.style.padding = "10px";
+    div.style.border = "1px solid #ddd";
+    div.style.borderRadius = "6px";
+    div.style.fontSize = "14px";
     div.innerHTML = `
       <strong>📄 ${file}</strong><br/>
-      <a href="/uploads/${file}" download="${file}">⬇️ Baixar PDF</a>
+      <a href="/uploads/${file}" download="${file}" style="display: inline-block; margin-top: 5px; color: #007bff;">⬇️ Baixar PDF</a>
     `;
     container.appendChild(div);
   });
 }
 
-// Chama função ao carregar a página
 window.onload = carregarHistorico;
 </script>
 
