@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Criar Pedido</title>
+  <title>Criar Novo Pedido</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -21,7 +21,8 @@
 <button onclick="limparAssinatura()">Limpar Assinatura</button>
 <button onclick="enviarPedido()">Gerar Link</button>
 
-<p id="linkArea"></p>
+<!-- Local onde o link vai aparecer -->
+<p id="linkArea" style="margin-top: 10px;"></p>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
 <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
@@ -120,6 +121,7 @@ function mostrarPDF() {
 async function enviarPedido() {
   const fileInput = document.getElementById("uploadPDF");
   const nome = document.getElementById("nomeCliente").value;
+
   if (!fileInput.files.length || !nome || !posX || !posY) {
     alert("Preencha todos os campos e marque a posição da assinatura.");
     return;
@@ -131,14 +133,26 @@ async function enviarPedido() {
   formData.append("x", posX / scale);
   formData.append("y", posY / scale);
 
-  const res = await fetch("/upload", {
-    method: "POST",
-    body: formData
-  });
+  const linkArea = document.getElementById("linkArea");
+  linkArea.innerHTML = "⏳ Gerando link...";
 
-  const data = await res.json();
-  const link = `http://localhost:3000/cliente.html?id=${data.id}`;
-  document.getElementById("linkArea").innerHTML = `<strong>Link do pedido:</strong> <a href="${link}" target="_blank">${link}</a>`;
+  try {
+    const res = await fetch("/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await res.json();
+    const link = window.location.origin + `/cliente.html?id=${data.id}`;
+
+    linkArea.innerHTML = `
+      <strong>✅ Link gerado!</strong><br/>
+      <a href="${link}" target="_blank">${link}</a>
+    `;
+  } catch (error) {
+    linkArea.innerHTML = `<span style="color: red;">❌ Erro ao gerar link.</span>`;
+    console.error(error);
+  }
 }
 </script>
 
