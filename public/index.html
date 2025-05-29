@@ -73,6 +73,11 @@ function limparAssinatura() {
 function marcarPosicao(e) {
   const container = document.getElementById("pdfContainer");
   const rect = container.getBoundingClientRect();
+  const img = container.querySelector("img");
+
+  if (!img) return;
+
+  // Coordenadas relativas à imagem
   posX = e.clientX - rect.left;
   posY = e.clientY - rect.top;
 
@@ -143,8 +148,20 @@ async function enviarPedido() {
   const formData = new FormData();
   formData.append("pdf", fileInput.files[0]);
   formData.append("nome", nome);
-  formData.append("x", posX / scale);
-  formData.append("y", posY / scale);
+
+  const img = document.getElementById("pdfContainer").querySelector("img");
+  if (!img) {
+    alert("Nenhum PDF carregado.");
+    return;
+  }
+
+  const imgWidth = img.clientWidth;
+  const imgHeight = img.clientHeight;
+
+  formData.append("x", posX);
+  formData.append("y", posY);
+  formData.append("imgWidth", imgWidth);
+  formData.append("imgHeight", imgHeight);
   formData.append("data", new Date().toLocaleString());
 
   const linkArea = document.getElementById("linkArea");
