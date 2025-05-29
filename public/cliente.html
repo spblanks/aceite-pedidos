@@ -13,9 +13,17 @@
       margin-top: 10px;
       cursor: crosshair;
     }
+    .assinado {
+      color: red;
+      font-weight: bold;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
+
+<!-- Aviso de assinado -->
+<p id="mensagemAviso"></p>
 
 <!-- Mostra o nome do cliente -->
 <p id="infoCliente"></p>
@@ -32,6 +40,18 @@ const urlParams = new URLSearchParams(window.location.search);
 const pedidoId = urlParams.get("id");
 const nomeCliente = urlParams.get("nome");
 
+const aviso = document.getElementById("mensagemAviso");
+
+// Verifica se já foi assinado (no localStorage)
+if (localStorage.getItem(`assinado_${pedidoId}`)) {
+  aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
+  document.querySelector("h2").remove();
+  document.querySelector("canvas").remove();
+  document.querySelector("button").remove();
+  return;
+}
+
+// Mostra o nome do cliente
 if (nomeCliente) {
   document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
 }
@@ -61,12 +81,6 @@ function draw(e) {
 }
 
 async function salvarAssinatura() {
-  // Verifica se já foi assinado
-  if (localStorage.getItem(`assinado_${pedidoId}`)) {
-    alert("Documento já assinado!");
-    return;
-  }
-
   const dataAtual = new Date().toLocaleDateString('pt-BR') + ' - ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   const dataUrl = canvas.toDataURL("image/png");
@@ -87,14 +101,8 @@ async function salvarAssinatura() {
 
     const result = await res.json();
 
-    // Marca como assinado
+    // Marca como assinado no navegador
     localStorage.setItem(`assinado_${pedidoId}`, "true");
-
-    // Limpa o canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Mostra aviso de sucesso
-    alert("✅ Aceite enviado com sucesso!");
 
     // Substitui a tela por uma mensagem de sucesso
     document.body.innerHTML = `
