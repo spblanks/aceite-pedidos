@@ -32,7 +32,6 @@ const urlParams = new URLSearchParams(window.location.search);
 const pedidoId = urlParams.get("id");
 const nomeCliente = urlParams.get("nome");
 
-// Mostra o nome do cliente (se estiver no link)
 if (nomeCliente) {
   document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
 }
@@ -62,6 +61,14 @@ function draw(e) {
 }
 
 async function salvarAssinatura() {
+  const dataAtual = new Date().toLocaleString();
+
+  // Verifica se já foi assinado
+  if (localStorage.getItem(`assinado_${pedidoId}`)) {
+    alert("Documento já assinado!");
+    return;
+  }
+
   const dataUrl = canvas.toDataURL("image/png");
   const formData = new FormData();
   const blob = await fetch(dataUrl).then(r => r.blob());
@@ -79,10 +86,18 @@ async function salvarAssinatura() {
     }
 
     const result = await res.json();
-    alert("Assinado! Você pode baixar o PDF aqui: " + result.url);
+
+    // Marca como assinado
+    localStorage.setItem(`assinado_${pedidoId}`, "true");
+
+    // Fecha a aba ou janela
+    window.close(); // Funciona melhor em popups
+    window.open('', '_self').close(); // Para navegadores que bloqueiam window.close()
+
+    alert("✅ Assinado! Você pode baixar o PDF aqui: " + result.url);
   } catch (error) {
     console.error("Erro ao assinar:", error);
-    alert("Erro ao enviar assinatura. Veja o console para mais detalhes.");
+    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
   }
 }
 </script>
