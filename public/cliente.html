@@ -66,9 +66,50 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// Declaração GLOBAL das funções — pra evitar o erro "not defined"
-let ctx; // contexto do canva
-let isDrawing = false;
+// FUNÇÃO GLOBAL - agora SEMPRE disponível
+function limparAssinatura() {
+  const canvas = document.getElementById("canvasAssinatura");
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+async function salvarAssinatura() {
+  const canvas = document.getElementById("canvasAssinatura");
+  if (!canvas) {
+    alert("Canvas não encontrado!");
+    return;
+  }
+
+  const dataUrl = canvas.toDataURL("image/png");
+  const formData = new FormData();
+  const blob = await fetch(dataUrl).then(r => r.blob());
+  formData.append("assinatura", blob, "assinatura.png");
+
+  try {
+    const res = await fetch(`/assinar/${pedidoId}`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
+    }
+
+    const result = await res.json();
+
+    // Marca como assinado
+    localStorage.setItem(`assinado_${pedidoId}`, "true");
+
+    // Redireciona pro link do PDF
+    window.location.href = result.url;
+  } catch (error) {
+    console.error("Erro ao assinar:", error);
+    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
+  }
+}
 
 // Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
@@ -88,9 +129,10 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
   if (!canvas) {
     console.error("Canvas não encontrado");
   } else {
-    ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d");
+    let isDrawing = false;
 
-    // Eventos do mouse
+    // Suporte a mouse
     canvas.addEventListener("mousedown", () => isDrawing = true);
     canvas.addEventListener("mouseup", () => {
       isDrawing = false;
@@ -135,42 +177,6 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
       ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
       e.preventDefault();
     });
-  }
-
-  function limparAssinatura() {
-    const canvas = document.getElementById("canvasAssinatura");
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  async function salvarAssinatura() {
-    const dataUrl = canvas.toDataURL("image/png");
-    const formData = new FormData();
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    formData.append("assinatura", blob, "assinatura.png");
-
-    try {
-      const res = await fetch(`/assinar/${pedidoId}`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
-      }
-
-      const result = await res.json();
-
-      // Marca como assinado
-      localStorage.setItem(`assinado_${pedidoId}`, "true");
-
-      // Redireciona pro download
-      window.location.href = result.url;
-    } catch (error) {
-      console.error("Erro ao assinar:", error);
-      alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
-    }
   }
 }
 </script>
