@@ -51,7 +51,7 @@
 <!-- Mostra o nome do cliente -->
 <p id="infoCliente"></p>
 
-<h2>Assine seu aceite de pedido</h2>
+<h2>Assine seu pedido</h2>
 
 <canvas id="canvasAssinatura" width="300" height="150"></canvas><br/>
 <button onclick="salvarAssinatura()">Enviar Assinatura</button>
@@ -66,35 +66,31 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// Verifica se já foi assinado (no localStorage)
+// Declaração GLOBAL das funções — pra evitar o erro "not defined"
+let ctx; // contexto do canva
+let isDrawing = false;
+
+// Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
   aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
   document.querySelector("h2").remove();
   document.querySelector("canvas").remove();
   document.querySelectorAll("button").forEach(b => b.remove());
-  document.getElementById("pdfViewer").remove();
 } else {
   if (nomeCliente) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
   }
 
-  // Carrega o PDF
-  const pdfFrame = document.getElementById("pdfViewer");
-  if (pdfFrame) {
-    pdfFrame.src = `/pedido/${pedidoId}`;
-  } else {
-    console.error("Elemento pdfViewer não encontrado");
-  }
+  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
 
-  // Configura o canva
   const canvas = document.getElementById("canvasAssinatura");
+
   if (!canvas) {
     console.error("Canvas não encontrado");
   } else {
-    const ctx = canvas.getContext("2d");
-    let isDrawing = false;
+    ctx = canvas.getContext("2d");
 
-    // Suporte a mouse
+    // Eventos do mouse
     canvas.addEventListener("mousedown", () => isDrawing = true);
     canvas.addEventListener("mouseup", () => {
       isDrawing = false;
@@ -148,7 +144,7 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
   }
 
   async function salvarAssinatura() {
-    const dataUrl = document.getElementById("canvasAssinatura").toDataURL("image/png");
+    const dataUrl = canvas.toDataURL("image/png");
     const formData = new FormData();
     const blob = await fetch(dataUrl).then(r => r.blob());
     formData.append("assinatura", blob, "assinatura.png");
@@ -169,7 +165,7 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
       // Marca como assinado
       localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-      // Redireciona pro link do PDF assinado
+      // Redireciona pro download
       window.location.href = result.url;
     } catch (error) {
       console.error("Erro ao assinar:", error);
