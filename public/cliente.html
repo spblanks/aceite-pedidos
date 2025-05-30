@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Assine seu Pedido</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,25 +21,25 @@
       font-weight: bold;
       font-size: 16px;
     }
-    button {
-      margin-top: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      font-size: 14px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
     iframe {
       width: 100%;
       height: 500px;
       margin-top: 20px;
       border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      margin-right: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      border: none;
       border-radius: 4px;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
@@ -49,7 +48,7 @@
 <!-- Aviso de assinado -->
 <p id="mensagemAviso"></p>
 
-<!-- Mostra nome do cliente -->
+<!-- Mostra o nome do cliente -->
 <p id="infoCliente"></p>
 
 <h2>Assine seu pedido</h2>
@@ -58,7 +57,7 @@
 <button onclick="salvarAssinatura()">Enviar Assinatura</button>
 <button onclick="limparAssinatura()">Limpar Assinatura</button>
 
-<iframe id="pdfViewer" src=""></iframe>
+<iframe id="pdfViewer" style="width:100%; height:600px; margin-top:20px;"></iframe>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
@@ -67,7 +66,7 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// Verifica se já foi assinado
+// Verifica se já foi assinado (no localStorage)
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
   aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
   document.querySelector("h2").remove();
@@ -78,23 +77,15 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
   }
 
-  const pdfFrame = document.getElementById("pdfViewer");
-  pdfFrame.src = `/pedido/${pedidoId}`;
+  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
 
   const canvas = document.getElementById("canvasAssinatura");
   const ctx = canvas.getContext("2d");
   let isDrawing = false;
 
-  // Configura canva pra desktop
   canvas.addEventListener("mousedown", () => isDrawing = true);
-  canvas.addEventListener("mouseup", () => {
-    isDrawing = false;
-    ctx.beginPath();
-  });
-  canvas.addEventListener("mouseleave", () => {
-    isDrawing = false;
-    ctx.beginPath();
-  });
+  canvas.addEventListener("mouseup", () => isDrawing = false);
+  canvas.addEventListener("mouseleave", () => isDrawing = false);
   canvas.addEventListener("mousemove", draw);
 
   function draw(e) {
@@ -106,22 +97,21 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
   }
 
-  // Configura canva pra celular
+  // Suporte a celular
   canvas.addEventListener("touchstart", (e) => {
     isDrawing = true;
-    desenharTouch(e);
+    const touch = e.touches[0];
+    ctx.beginPath();
+    const rect = canvas.getBoundingClientRect();
+    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
   });
+
   canvas.addEventListener("touchend", () => {
     isDrawing = false;
     ctx.beginPath();
   });
-  canvas.addEventListener("touchcancel", () => {
-    isDrawing = false;
-    ctx.beginPath();
-  });
-  canvas.addEventListener("touchmove", desenharTouch);
 
-  function desenharTouch(e) {
+  canvas.addEventListener("touchmove", (e) => {
     if (!isDrawing) return;
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
@@ -129,49 +119,47 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-    e.preventDefault();
-  }
+  });
 
   function limparAssinatura() {
     const canvas = document.getElementById("canvasAssinatura");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
-}
 
-async function salvarAssinatura() {
-  if (localStorage.getItem(`assinado_${pedidoId}`)) {
-    alert("Documento já assinado!");
-    return;
-  }
+  async function salvarAssinatura() {
+    const dataUrl = canvas.toDataURL("image/png");
+    const formData = new FormData();
+    const blob = await fetch(dataUrl).then(r => r.blob());
+    formData.append("assinatura", blob, "assinatura.png");
 
-  const dataUrl = document.getElementById("canvasAssinatura").toDataURL("image/png");
-  const formData = new FormData();
-  const blob = await fetch(dataUrl).then(r => r.blob());
-  formData.append("assinatura", blob, "assinatura.png");
+    try {
+      const res = await fetch(`/assinar/${pedidoId}`, {
+        method: "POST",
+        body: formData
+      });
 
-  try {
-    const res = await fetch(`/assinar/${pedidoId}`, {
-      method: "POST",
-      body: formData
-    });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
+      }
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
+      const result = await res.json();
+
+      // Marca como assinado
+      localStorage.setItem(`assinado_${pedidoId}`, "true");
+
+      // Substitui a tela por uma de sucesso com link de download
+      document.body.innerHTML = `
+        <h2>✔️ Assinado!</h2>
+        <p>Aceite enviado com sucesso.</p>
+        <a href="${result.url}" target="_blank">⬇️ Clique aqui para baixar o PDF</a>
+      `;
+    } catch (error) {
+      console.error("Erro ao assinar:", error);
+      alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
     }
-
-    const result = await res.json();
-
-    localStorage.setItem(`assinado_${pedidoId}`, "true");
-
-    // Redireciona pro link do PDF assinado
-    window.location.href = result.url;
-  } catch (error) {
-    console.error("Erro ao assinar:", error);
-    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
   }
-}
 </script>
 
 </body>
