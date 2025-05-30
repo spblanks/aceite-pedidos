@@ -28,17 +28,18 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-// Banco de dados temporário em memória
+// Banco de dados temporário
 let pedidos = {};
 
 // Upload do PDF com dados do cliente
 app.post("/upload", upload.single("pdf"), (req, res) => {
   try {
     const id = Math.random().toString(36).substring(2);
-    const { x, y, imgWidth, imgHeight } = req.body;
+    const { nome, x, y, imgWidth, imgHeight } = req.body;
     const filePath = req.file.path;
 
     pedidos[id] = {
+      nome,
       filePath,
       x,
       y,
@@ -57,16 +58,18 @@ app.post("/upload", upload.single("pdf"), (req, res) => {
 app.get("/pedido/:id", (req, res) => {
   const { id } = req.params;
   const pedido = pedidos[id];
+
   if (!pedido) return res.status(404).send("Pedido não encontrado");
 
   res.sendFile(path.resolve(pedido.filePath));
 });
 
-// Recebe a assinatura e salva no Google Drive (exemplo local)
+// Recebe a assinatura e insere no PDF
 app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
     const pedido = pedidos[id];
+
     if (!pedido) return res.status(404).send("Pedido não encontrado");
 
     const pdfBytes = fs.readFileSync(pedido.filePath);
@@ -88,6 +91,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
+    // Data/hora Brasília
     const agora = new Date();
     const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -102,23 +106,20 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const savedPdfBytes = await pdfDoc.save();
 
     // Gera nome seguro com base no nome do cliente
-    const referer = req.headers.referer;
-    const parsed = new URL(referer);
-    const nomeCliente = decodeURIComponent(parsed.searchParams.get("nome") || "Cliente");
-
-    const safeName = nomeCliente.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeName = pedido.nome.replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    // Se já existe, impede nova assinatura
+    // Impede assinaturas repetidas
     if (fs.existsSync(signedPath)) {
-      return res.status(400).json({ error: "Documento já foi assinado", code: "ALREADY_SIGNED" });
+      return res.status(400).json({ error: "Documento já foi assinado.", code: "ALREADY_SIGNED" });
     }
 
     fs.writeFileSync(signedPath, savedPdfBytes);
+
     res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
-    res.status(500).json({ error: "Erro interno do servidor" });
+    res.status(500).json({ error: "Erro ao inserir assinatura" });
   }
 });
 
