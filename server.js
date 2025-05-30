@@ -5,7 +5,6 @@ const path = require("path");
 const PDFLib = require("pdf-lib");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const url = require("url");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = "uploads/";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir); // Cria uploads automaticamente
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -27,7 +26,7 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
-app.use("/uploads", express.static("uploads")); // Serve os PDFs assinados
+app.use("/uploads", express.static("uploads"));
 
 // Banco de dados temporário em memória
 let pedidos = {};
@@ -63,7 +62,7 @@ app.get("/pedido/:id", (req, res) => {
   res.sendFile(path.resolve(pedido.filePath));
 });
 
-// Recebe a assinatura e insere no PDF
+// Recebe a assinatura e salva no Google Drive (exemplo local)
 app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
@@ -77,12 +76,10 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajuste proporcional da posição marcada pelo criador
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
     const yPdf = height - yReal - 40;
 
-    // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
       x: xReal,
@@ -91,24 +88,10 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
-    // ✅ Correção do fuso horário para Brasília (GMT-3)
     const agora = new Date();
-
-    // Ajusta para horário do Brasil (GMT-3)
-    const offsetBrasil = -3 * 60; // minutos do GMT-3 (Brasília)
-    const dataBrasil = new Date(agora.getTime() + offsetBrasil * 60 * 1000);
-
-    const dia = String(dataBrasil.getDate()).padStart(2, '0');
-    const mes = String(dataBrasil.getMonth() + 1).padStart(2, '0'); // Mês começa do 0
-    const ano = dataBrasil.getFullYear();
-    const hora = String(dataBrasil.getHours()).padStart(2, '0');
-    const minuto = String(dataBrasil.getMinutes()).padStart(2, '0');
-
-    const dataFormatada = `${dia}/${mes}/${ano} - ${hora}:${minuto}`;
-
-    // Adiciona texto da data/hora no PDF
+    const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    firstPage.drawText(dataFormatada, {
+    firstPage.drawText(dataBrasil, {
       x: xReal,
       y: yPdf - 20,
       size: 10,
@@ -116,26 +99,26 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       color: PDFLib.rgb(0, 0, 0)
     });
 
+    const savedPdfBytes = await pdfDoc.save();
+
     // Gera nome seguro com base no nome do cliente
     const referer = req.headers.referer;
-    const parsed = url.parse(referer, true);
-    const nomeCliente = decodeURIComponent(parsed.query.nome || "Cliente");
+    const parsed = new URL(referer);
+    const nomeCliente = decodeURIComponent(parsed.searchParams.get("nome") || "Cliente");
 
     const safeName = nomeCliente.replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    // Se já existe, impede novo envio
+    // Se já existe, impede nova assinatura
     if (fs.existsSync(signedPath)) {
-      return res.status(400).json({ error: "Documento já foi assinado." });
+      return res.status(400).json({ error: "Documento já foi assinado", code: "ALREADY_SIGNED" });
     }
 
-    const savedPdfBytes = await pdfDoc.save();
     fs.writeFileSync(signedPath, savedPdfBytes);
-
-    res.json({ url: `/uploads/${safeName}-assinado.pdf` });
+    res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
-    res.status(500).json({ error: "Erro ao inserir assinatura" });
+    res.status(500).json({ error: "Erro interno do servidor" });
   }
 });
 
