@@ -28,7 +28,7 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-// Banco de dados temporário
+// Banco de dados temporário em memória
 let pedidos = {};
 
 // Upload do PDF com dados do cliente
@@ -91,7 +91,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
-    // Data/hora Brasília
+    // Adiciona data/hora Brasília
     const agora = new Date();
     const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -103,19 +103,16 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       color: PDFLib.rgb(0, 0, 0)
     });
 
+    // Gera novo PDF
     const savedPdfBytes = await pdfDoc.save();
-
-    // Gera nome seguro com base no nome do cliente
-    const safeName = pedido.nome.replace(/[^a-zA-Z0-9]/g, '_');
+    const safeName = decodeURIComponent(pedido.nome).replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    // Impede assinaturas repetidas
     if (fs.existsSync(signedPath)) {
-      return res.status(400).json({ error: "Documento já foi assinado.", code: "ALREADY_SIGNED" });
+      return res.status(400).json({ error: "Documento já assinado.", code: "ALREADY_SIGNED" });
     }
 
     fs.writeFileSync(signedPath, savedPdfBytes);
-
     res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error);
