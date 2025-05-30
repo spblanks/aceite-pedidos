@@ -17,23 +17,20 @@
 
 <div id="pdfContainer" onclick="marcarPosicao(event)">Clique no PDF para marcar onde a assinatura deve ir</div>
 
-<canvas id="assinaturaCanvas" width="300" height="150"></canvas>
-<button onclick="limparAssinatura()">Limpar Assinatura</button>
 <button onclick="enviarPedido()">Gerar Link</button>
 
 <!-- Local onde o link vai aparecer -->
 <p id="linkArea" style="margin-top: 10px;"></p>
 
-<!-- Histórico de pedidos assinados -->
+<!-- Lista de pedidos assinados -->
 <h3 style="margin-top: 40px;">📁 Pedidos Assinados</h3>
 <div id="historicoAssinados">Carregando...</div>
 
-<!-- Bibliotecas -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script> 
 <script src="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.min.js"></script> 
 
 <script>
-// Fix para pdf.js
+// Fix para o aviso do pdf.js
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
 }
@@ -41,32 +38,6 @@ if (typeof pdfjsLib !== 'undefined') {
 let pdfPages = [];
 let posX = 0, posY = 0;
 let scale = 1.5;
-
-const canvasAss = document.getElementById("assinaturaCanvas");
-const ctxAss = canvasAss.getContext("2d");
-let isDrawing = false;
-
-canvasAss.addEventListener("mousedown", () => isDrawing = true);
-canvasAss.addEventListener("mouseup", () => isDrawing = false);
-canvasAss.addEventListener("mouseleave", () => isDrawing = false);
-canvasAss.addEventListener("mousemove", desenhar);
-
-function desenhar(e) {
-  if (!isDrawing) return;
-  ctxAss.lineWidth = 2;
-  ctxAss.lineCap = "round";
-  ctxAss.strokeStyle = "#000";
-
-  const rect = canvasAss.getBoundingClientRect();
-  ctxAss.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-  ctxAss.stroke();
-  ctxAss.beginPath();
-  ctxAss.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-}
-
-function limparAssinatura() {
-  ctxAss.clearRect(0, 0, canvasAss.width, canvasAss.height);
-}
 
 function marcarPosicao(e) {
   const container = document.getElementById("pdfContainer");
@@ -159,7 +130,7 @@ async function enviarPedido() {
   formData.append("x", posX);
   formData.append("y", posY);
   formData.append("imgWidth", imgWidth);
-  formData.append("imgHeight", imgHeight);
+  formData.append("imgHeight", img.clientHeight);
   formData.append("data", new Date().toLocaleString());
 
   const linkArea = document.getElementById("linkArea");
@@ -190,7 +161,7 @@ async function enviarPedido() {
   }
 }
 
-// Carrega histórico dos PDFs assinados
+// Carrega os pedidos assinados ao abrir a página
 async function carregarHistorico() {
   const response = await fetch("/listar-assinados");
   const files = await response.json();
@@ -213,7 +184,6 @@ async function carregarHistorico() {
   });
 }
 
-// Chama função ao carregar a página
 window.onload = carregarHistorico;
 </script>
 
