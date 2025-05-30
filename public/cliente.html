@@ -46,10 +46,10 @@
 </head>
 <body>
 
-<!-- Aviso de documento já assinado -->
+<!-- Aviso de assinado -->
 <p id="mensagemAviso"></p>
 
-<!-- Mostra o nome do cliente -->
+<!-- Mostra nome do cliente -->
 <p id="infoCliente"></p>
 
 <h2>Assine seu pedido</h2>
@@ -67,7 +67,7 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// Verifica se já foi assinado (no localStorage)
+// Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
   aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
   document.querySelector("h2").remove();
@@ -78,27 +78,24 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
   }
 
-  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
+  const pdfFrame = document.getElementById("pdfViewer");
+  pdfFrame.src = `/pedido/${pedidoId}`;
 
   const canvas = document.getElementById("canvasAssinatura");
   const ctx = canvas.getContext("2d");
   let isDrawing = false;
 
-  // Configura canva
+  // Configura canva pra desktop
   canvas.addEventListener("mousedown", () => isDrawing = true);
-  canvas.addEventListener("mouseup", () => isDrawing = false);
-  canvas.addEventListener("mouseleave", () => isDrawing = false);
-  canvas.addEventListener("mousemove", draw);
-
-  canvas.addEventListener("touchstart", (e) => {
-    isDrawing = true;
-    desenharTouch(e);
-  });
-  canvas.addEventListener("touchend", () => {
+  canvas.addEventListener("mouseup", () => {
     isDrawing = false;
     ctx.beginPath();
   });
-  canvas.addEventListener("touchmove", desenharTouch);
+  canvas.addEventListener("mouseleave", () => {
+    isDrawing = false;
+    ctx.beginPath();
+  });
+  canvas.addEventListener("mousemove", draw);
 
   function draw(e) {
     if (!isDrawing) return;
@@ -109,6 +106,21 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
   }
 
+  // Configura canva pra celular
+  canvas.addEventListener("touchstart", (e) => {
+    isDrawing = true;
+    desenharTouch(e);
+  });
+  canvas.addEventListener("touchend", () => {
+    isDrawing = false;
+    ctx.beginPath();
+  });
+  canvas.addEventListener("touchcancel", () => {
+    isDrawing = false;
+    ctx.beginPath();
+  });
+  canvas.addEventListener("touchmove", desenharTouch);
+
   function desenharTouch(e) {
     if (!isDrawing) return;
     const touch = e.touches[0];
@@ -117,56 +129,49 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    e.preventDefault();
   }
 
   function limparAssinatura() {
     const canvas = document.getElementById("canvasAssinatura");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath();
+  }
+}
+
+async function salvarAssinatura() {
+  if (localStorage.getItem(`assinado_${pedidoId}`)) {
+    alert("Documento já assinado!");
+    return;
   }
 
-  async function salvarAssinatura() {
-    if (localStorage.getItem(`assinado_${pedidoId}`)) {
-      alert("❌ Você já assinou este pedido anteriormente.");
-      return;
+  const dataUrl = document.getElementById("canvasAssinatura").toDataURL("image/png");
+  const formData = new FormData();
+  const blob = await fetch(dataUrl).then(r => r.blob());
+  formData.append("assinatura", blob, "assinatura.png");
+
+  try {
+    const res = await fetch(`/assinar/${pedidoId}`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
     }
 
-    const dataUrl = canvas.toDataURL("image/png");
-    const formData = new FormData();
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    formData.append("assinatura", blob, "assinatura.png");
+    const result = await res.json();
 
-    try {
-      const res = await fetch(`/assinar/${pedidoId}`, {
-        method: "POST",
-        body: formData
-      });
+    localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
-      }
-
-      const result = await res.json();
-
-      // Marca como assinado
-      localStorage.setItem(`assinado_${pedidoId}`, "true");
-
-      // Redireciona pra download
-      window.location.href = result.url;
-    } catch (error) {
-      const errorMessage = error.message;
-
-      // Erro específico de assinatura duplicada
-      if (errorMessage.includes("Documento já foi assinado")) {
-        alert("❌ Não é possível assinar duas vezes o mesmo pedido.");
-      } else {
-        console.error("Erro ao assinar:", error);
-        alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
-      }
-    }
+    // Redireciona pro link do PDF assinado
+    window.location.href = result.url;
+  } catch (error) {
+    console.error("Erro ao assinar:", error);
+    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
   }
+}
 </script>
 
 </body>
