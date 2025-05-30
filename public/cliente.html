@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Assine seu Pedido</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -45,7 +46,7 @@
 </head>
 <body>
 
-<!-- Aviso de assinado -->
+<!-- Aviso de documento já assinado -->
 <p id="mensagemAviso"></p>
 
 <!-- Mostra o nome do cliente -->
@@ -66,7 +67,7 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// FUNÇÃO GLOBAL - agora SEMPRE disponível
+// Função GLOBAL - disponível sempre
 function limparAssinatura() {
   const canvas = document.getElementById("canvasAssinatura");
   if (!canvas) return;
@@ -103,8 +104,12 @@ async function salvarAssinatura() {
     // Marca como assinado
     localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-    // Redireciona pro link do PDF
-    window.location.href = result.url;
+    // Redireciona pra tela de sucesso com link direto pro PDF
+    document.body.innerHTML = `
+      <h2>✔️ Assinado!</h2>
+      <p>Aceite enviado com sucesso.</p>
+      <a href="${result.url}" target="_blank">⬇️ Clique aqui para baixar o PDF</a>
+    `;
   } catch (error) {
     console.error("Erro ao assinar:", error);
     alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
