@@ -69,7 +69,6 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
     const pedido = pedidos[id];
-
     if (!pedido) return res.status(404).send("Pedido não encontrado");
 
     const pdfBytes = fs.readFileSync(pedido.filePath);
@@ -79,10 +78,12 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
+    // Ajuste proporcional da posição
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
     const yPdf = height - yReal - 40;
 
+    // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
       x: xReal,
@@ -103,19 +104,24 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       color: PDFLib.rgb(0, 0, 0)
     });
 
-    // Gera novo PDF
+    // Salva o novo PDF
     const savedPdfBytes = await pdfDoc.save();
+
+    // Gera nome seguro com base no nome do cliente
     const safeName = decodeURIComponent(pedido.nome).replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
+    // Impede assinaturas repetidas
     if (fs.existsSync(signedPath)) {
-      return res.status(400).json({ error: "Documento já assinado.", code: "ALREADY_SIGNED" });
+      return res.status(400).json({ error: "Documento já foi assinado." });
     }
 
     fs.writeFileSync(signedPath, savedPdfBytes);
+
+    // Retorna link acessível
     res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
-    console.error("Erro no /assinar:", error);
+    console.error("Erro no /assinar:", error.message);
     res.status(500).json({ error: "Erro ao inserir assinatura" });
   }
 });
