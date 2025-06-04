@@ -46,7 +46,7 @@
 </head>
 <body>
 
-<!-- Aviso -->
+<!-- Aviso de documento já assinado -->
 <p id="mensagemAviso"></p>
 
 <!-- Mostra nome do cliente -->
@@ -67,76 +67,12 @@ const nomeCliente = urlParams.get("nome");
 
 const aviso = document.getElementById("mensagemAviso");
 
-// Verifica se já assinou
-if (localStorage.getItem(`assinado_${pedidoId}`)) {
-  aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
-  document.querySelector("h2").remove();
-  document.querySelector("canvas").remove();
-  document.querySelectorAll("button").forEach(b => b.remove());
-} else {
-  if (nomeCliente) {
-    document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
-  }
-
-  // Carrega o PDF direto do servidor (mesmo se o pedido não estiver mais salvo)
-  const pdfFrame = document.getElementById("pdfViewer");
-  pdfFrame.src = `/pedido/${pedidoId}`;
-
+function limparAssinatura() {
   const canvas = document.getElementById("canvasAssinatura");
+  if (!canvas) return;
 
-  if (!canvas) {
-    console.error("Canvas não encontrado");
-  } else {
-    const ctx = canvas.getContext("2d");
-    let isDrawing = false;
-
-    canvas.addEventListener("mousedown", () => isDrawing = true);
-    canvas.addEventListener("mouseup", () => {
-      isDrawing = false;
-      ctx.beginPath();
-    });
-    canvas.addEventListener("mouseleave", () => {
-      isDrawing = false;
-      ctx.beginPath();
-    });
-    canvas.addEventListener("mousemove", draw);
-
-    function draw(e) {
-      if (!isDrawing) return;
-      const rect = canvas.getBoundingClientRect();
-      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-    }
-
-    canvas.addEventListener("touchstart", (e) => {
-      isDrawing = true;
-      desenharTouch(e);
-    });
-
-    canvas.addEventListener("touchend", () => {
-      isDrawing = false;
-      ctx.beginPath();
-    });
-
-    canvas.addEventListener("touchmove", desenharTouch);
-
-    function desenharTouch(e) {
-      if (!isDrawing) return;
-      const touch = e.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-      e.preventDefault();
-    }
-
-    function limparAssinatura() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
 async function salvarAssinatura() {
@@ -161,13 +97,83 @@ async function salvarAssinatura() {
 
     const result = await res.json();
 
+    // Marca como assinado no navegador
     localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-    // Redireciona pra download do PDF
+    // Redireciona pro link do PDF
     window.location.href = result.url;
   } catch (error) {
     console.error("Erro ao assinar:", error);
-    alert("❌ Erro ao enviar assinatura. Veja o console.");
+    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
+  }
+}
+
+// Verifica se já foi assinado
+if (localStorage.getItem(`assinado_${pedidoId}`)) {
+  aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
+  document.querySelector("h2").remove();
+  document.querySelector("canvas").remove();
+  document.querySelectorAll("button").forEach(b => b.remove());
+} else {
+  if (nomeCliente) {
+    document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
+  }
+
+  document.getElementById("pdfViewer").src = `/pedido/${pedidoId}`;
+
+  const canvas = document.getElementById("canvasAssinatura");
+
+  if (!canvas) {
+    console.error("Canvas não encontrado");
+  } else {
+    const ctx = canvas.getContext("2d");
+    let isDrawing = false;
+
+    // Suporte a mouse
+    canvas.addEventListener("mousedown", () => isDrawing = true);
+    canvas.addEventListener("mouseup", () => {
+      isDrawing = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener("mouseleave", () => {
+      isDrawing = false;
+      ctx.beginPath();
+    });
+    canvas.addEventListener("mousemove", draw);
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    // Suporte a celular
+    canvas.addEventListener("touchstart", (e) => {
+      isDrawing = true;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      ctx.beginPath();
+      ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    });
+
+    canvas.addEventListener("touchend", () => {
+      isDrawing = false;
+      ctx.beginPath();
+    });
+
+    canvas.addEventListener("touchmove", (e) => {
+      if (!isDrawing) return;
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      e.preventDefault();
+    });
   }
 }
 </script>
