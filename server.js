@@ -24,21 +24,8 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-// Banco de dados temporário em arquivo
-const PEDIDOS_FILE = "pedidos.json";
-
-function carregarPedidos() {
-  if (!fs.existsSync(PEDIDOS_FILE)) {
-    fs.writeFileSync(PEDIDOS_FILE, "{}");
-  }
-  return JSON.parse(fs.readFileSync(PEDIDOS_FILE));
-}
-
-function salvarPedidos(pedidos) {
-  fs.writeFileSync(PEDIDOS_FILE, JSON.stringify(pedidos, null, 2));
-}
-
-let pedidos = carregarPedidos();
+// Banco de dados temporário em memória
+let pedidos = {};
 
 // Upload do PDF com dados do cliente
 app.post("/upload", upload.single("pdf"), (req, res) => {
@@ -56,7 +43,6 @@ app.post("/upload", upload.single("pdf"), (req, res) => {
       imgHeight
     };
 
-    salvarPedidos(pedidos);
     res.json({ id });
   } catch (error) {
     console.error("Erro no /upload:", error);
@@ -67,96 +53,74 @@ app.post("/upload", upload.single("pdf"), (req, res) => {
 // Envia o PDF original para o cliente
 app.get("/pedido/:id", (req, res) => {
   const { id } = req.params;
+  const pedido = pedidos[id];
 
-  // Se o pedido ainda existir localmente, mostra
-  if (pedidos[id]) {
-    res.sendFile(path.resolve(pedidos[id].filePath));
-    return;
-  }
+  if (!pedido) return res.status(404).send("Pedido não encontrado");
 
-  // Se não estiver mais salvo, tenta mostrar o PDF assinado, se existir
-  const safeName = decodeURIComponent(req.query.nome || "Cliente").replace(/[^a-zA-Z0-9]/g, '_');
-  const signedPath = `uploads/${safeName}-assinado.pdf`;
-
-  if (fs.existsSync(signedPath)) {
-    res.sendFile(path.resolve(signedPath));
-    return;
-  }
-
-  res.send("PDF não encontrado. O pedido pode ter sido apagado após reinicialização.");
+  res.sendFile(path.resolve(pedido.filePath));
 });
 
 // Recebe a assinatura e insere no PDF
 app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
+    const pedido = pedidos[id];
 
-    // Se o pedido ainda estiver salvo, usa ele
-    if (pedidos[id]) {
-      const pedido = pedidos[id];
+    if (!pedido) return res.status(404).send("Pedido não encontrado");
 
-      const pdfBytes = fs.readFileSync(pedido.filePath);
-      const pngPath = req.file.path;
+    const pdfBytes = fs.readFileSync(pedido.filePath);
+    const pngPath = req.file.path;
 
-      const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-      const firstPage = pdfDoc.getPage(0);
-      const { width, height } = firstPage.getSize();
+    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+    const firstPage = pdfDoc.getPage(0);
+    const { width, height } = firstPage.getSize();
 
-      const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
-      const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
-      const yPdf = height - yReal - 40;
+    // Ajuste proporcional da posição marcada pelo criador
+    const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
+    const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
+    const yPdf = height - yReal - 40;
 
-      const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
-      firstPage.drawImage(pngImage, {
-        x: xReal,
-        y: yPdf,
-        width: 120,
-        height: 40
-      });
+    // Insere assinatura
+    const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
+    firstPage.drawImage(pngImage, {
+      x: xReal,
+      y: yPdf,
+      width: 120,
+      height: 40
+    });
 
-      // Adiciona data/hora Brasília
-      const agora = new Date();
-      const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-      firstPage.drawText(dataBrasil, {
-        x: xReal,
-        y: yPdf - 20,
-        size: 10,
-        font: helveticaFont,
-        color: PDFLib.rgb(0, 0, 0)
-      });
+    // Data/hora Brasília
+    const agora = new Date();
+    const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    firstPage.drawText(dataBrasil, {
+      x: xReal,
+      y: yPdf - 20,
+      size: 10,
+      font: helveticaFont,
+      color: PDFLib.rgb(0, 0, 0)
+    });
 
-      const savedPdfBytes = await pdfDoc.save();
+    // Salva o novo PDF
+    const savedPdfBytes = await pdfDoc.save();
 
-      // Gera nome seguro com base no nome do cliente
-      const safeName = decodeURIComponent(pedido.nome).replace(/[^a-zA-Z0-9]/g, '_');
-      const signedPath = `uploads/${safeName}-assinado.pdf`;
+    // Gera nome seguro com base no nome do cliente
+    const safeName = decodeURIComponent(pedido.nome).replace(/[^a-zA-Z0-9]/g, '_');
+    const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-      // Se já existe, impede nova assinatura
-      if (fs.existsSync(signedPath)) {
-        return res.status(400).json({ error: "Documento já foi assinado." });
-      }
+    // Impede assinaturas repetidas
+    if (fs.existsSync(signedPath)) {
+      return res.status(400).json({ error: "Documento já foi assinado." });
+    }
 
-      fs.writeFileSync(signedPath, savedPdfBytes);
+    fs.writeFileSync(signedPath, savedPdfBytes);
 
-      // Retorna link pro cliente baixar
-      res.json({ url: `/${safeName}-assinado.pdf` });
-    } else {
-      // Se o pedido já foi perdido, tenta recuperar pelo nome no query param
-      const nomeCliente = req.body.nome || urlParams.get("nome") || "Cliente";
-      const safeName = decodeURIComponent(nomeCliente).replace(/[^a-zA-Z0-9]/g, '_');
-
-      // Tenta retornar o PDF assinado, se já existir
-      const signedPath = `uploads/${safeName}-assinado.pdf`;
-      if (fs.existsSync(signedPath)) {
-        return res.json({ url: `/${safeName}-assinado.pdf` });
-      }
-
-      res.status(404).send("Pedido não encontrado. O pedido pode ter expirado.");
+    // Retorna link pro cliente baixar
+    res.json({ url: `/${safeName}-assinado.pdf` });
+  } catch (error) {
+    console.error("Erro no /assinar:", error.message);
+    res.status(500).json({ error: "Erro ao inserir assinatura" });
   }
-} catch (error) {
-  console.error("Erro no /assinar:", error.message);
-  res.status(500).json({ error: "Erro ao inserir assinatura" });
 });
 
 // Nova rota: listar todos os PDFs assinados
