@@ -11,11 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 // Configuração de upload
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = "uploads/";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
+  destination: "uploads/",
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   }
@@ -26,7 +22,7 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static("uploads")); // Serve arquivos da pasta uploads/
 
 // Banco de dados temporário em memória
 let pedidos = {};
@@ -69,6 +65,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
     const pedido = pedidos[id];
+
     if (!pedido) return res.status(404).send("Pedido não encontrado");
 
     const pdfBytes = fs.readFileSync(pedido.filePath);
@@ -78,12 +75,10 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajuste proporcional da posição
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
     const yPdf = height - yReal - 40;
 
-    // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
       x: xReal,
@@ -92,7 +87,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       height: 40
     });
 
-    // Adiciona data/hora Brasília
+    // Data/hora Brasília
     const agora = new Date();
     const dataBrasil = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -104,7 +99,6 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       color: PDFLib.rgb(0, 0, 0)
     });
 
-    // Salva o novo PDF
     const savedPdfBytes = await pdfDoc.save();
 
     // Gera nome seguro com base no nome do cliente
@@ -118,7 +112,7 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
 
     fs.writeFileSync(signedPath, savedPdfBytes);
 
-    // Retorna link acessível
+    // Retorna caminho relativo
     res.json({ url: `/${safeName}-assinado.pdf` });
   } catch (error) {
     console.error("Erro no /assinar:", error.message);
