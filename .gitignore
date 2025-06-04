@@ -1,1 +1,25 @@
+# Arquivos sensíveis
+credentials.json
+tokens.json
+.env
+.env.local
+.env.development
+.env.test
+.env.production
 
+# Pastas que não devem ir para o GitHub
+/uploads
+/node_modules
+/build
+/dist
+/logs
+/temp
+
+# Arquivos temporários
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
