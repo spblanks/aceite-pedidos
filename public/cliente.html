@@ -3,24 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <title>Assine seu Pedido</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
       max-width: 400px;
       margin: auto;
+      text-align: center;
     }
     canvas {
       border: 1px solid #ccc;
       margin-top: 10px;
       cursor: crosshair;
       touch-action: none;
-    }
-    .assinado {
-      color: red;
-      font-weight: bold;
-      font-size: 16px;
     }
     iframe {
       width: 100%;
@@ -41,6 +36,12 @@
     }
     button:hover {
       background-color: #0056b3;
+    }
+    .mensagem-sucesso {
+      font-size: 16px;
+      color: green;
+      font-weight: bold;
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -95,25 +96,31 @@ async function salvarAssinatura() {
       throw new Error(`Erro HTTP: ${res.status} - Resposta: ${text}`);
     }
 
-    const result = await res.json();
-
     // Marca como assinado
     localStorage.setItem(`assinado_${pedidoId}`, "true");
 
-    // Redireciona pra download
-    window.location.href = result.url;
+    // Mostra tela de sucesso
+    document.body.innerHTML = `
+      <h2>✔️ Assinado!</h2>
+      <p class="mensagem-sucesso">Aceite enviado com sucesso.</p>
+    `;
   } catch (error) {
     console.error("Erro ao assinar:", error);
-    alert("❌ Erro ao enviar assinatura. Veja o console para mais detalhes.");
+
+    // Mostra tela de erro clara
+    document.body.innerHTML = `
+      <h2>❌ Erro na assinatura</h2>
+      <p>Não foi possível enviar sua assinatura. Tente novamente mais tarde.</p>
+    `;
   }
 }
 
 // Verifica se já foi assinado
 if (localStorage.getItem(`assinado_${pedidoId}`)) {
-  aviso.innerHTML = "<strong class='assinado'>⚠️ Este documento já foi assinado!</strong>";
-  document.querySelector("h2").remove();
-  document.querySelector("canvas").remove();
-  document.querySelectorAll("button").forEach(b => b.remove());
+  document.body.innerHTML = `
+    <h2>✔️ Documento já assinado</h2>
+    <p>O aceite já foi realizado anteriormente.</p>
+  `;
 } else {
   if (nomeCliente) {
     document.getElementById("infoCliente").innerHTML = `<strong>Cliente:</strong> ${decodeURIComponent(nomeCliente)}`;
@@ -129,6 +136,7 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
     const ctx = canvas.getContext("2d");
     let isDrawing = false;
 
+    // Suporte a mouse
     canvas.addEventListener("mousedown", () => isDrawing = true);
     canvas.addEventListener("mouseup", () => {
       isDrawing = false;
@@ -149,20 +157,18 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
       ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
     }
 
+    // Suporte a toque (celular)
     canvas.addEventListener("touchstart", (e) => {
       isDrawing = true;
-      const touch = e.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      ctx.beginPath();
-      ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      desenharTouch(e);
     });
-
     canvas.addEventListener("touchend", () => {
       isDrawing = false;
       ctx.beginPath();
     });
+    canvas.addEventListener("touchmove", desenharTouch);
 
-    canvas.addEventListener("touchmove", (e) => {
+    function desenharTouch(e) {
       if (!isDrawing) return;
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
@@ -171,7 +177,7 @@ if (localStorage.getItem(`assinado_${pedidoId}`)) {
       ctx.beginPath();
       ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
       e.preventDefault();
-    });
+    }
   }
 }
 </script>
