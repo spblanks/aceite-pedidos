@@ -3,6 +3,8 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const PDFLib = require("pdf-lib");
+const { google } = require("googleapis");
+const { OAuth2Client } = require("google-auth-library");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 
@@ -24,10 +26,41 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
+// Autenticação Google Drive
+const CLIENT_ID = "SEU_CLIENT_ID.apps.googleusercontent.com";
+const CLIENT_SECRET = "SEU_CLIENT_SECRET";
+const REDIRECT_URI = "http://localhost:3000/auth/callback";
+
+const oauth2Client = new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+let tokens = null;
+
 // Banco de dados temporário em memória
 let pedidos = {};
 
-// Upload do PDF com dados do cliente
+// Rota de autenticação Google
+app.get("/auth/google", (req, res) => {
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: ["https://www.googleapis.com/auth/drive.file"] 
+  });
+  res.redirect(authUrl);
+});
+
+app.get("/auth/callback", async (req, res) => {
+  const { code } = req.query;
+  const { tokens } = await oauth2Client.getToken(code);
+  oauth2Client.setCredentials(tokens);
+  fs.writeFileSync("tokens.json", JSON.stringify(tokens));
+  res.send("✅ Autenticado no Google Drive!");
+});
+
+// Carrega tokens se existirem
+if (fs.existsSync("tokens.json")) {
+  const savedTokens = fs.readFileSync("tokens.json");
+  oauth2Client.setCredentials(JSON.parse(savedTokens));
+}
+
+// Upload do PDF
 app.post("/upload", upload.single("pdf"), (req, res) => {
   try {
     const id = Math.random().toString(36).substring(2);
@@ -60,7 +93,7 @@ app.get("/pedido/:id", (req, res) => {
   res.sendFile(path.resolve(pedido.filePath));
 });
 
-// Recebe a assinatura e insere no PDF
+// Recebe a assinatura e salva no Google Drive
 app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
   try {
     const { id } = req.params;
@@ -75,12 +108,10 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
     const firstPage = pdfDoc.getPage(0);
     const { width, height } = firstPage.getSize();
 
-    // Ajuste proporcional da posição marcada pelo criador
     const xReal = parseFloat(pedido.x) * (width / parseFloat(pedido.imgWidth));
     const yReal = parseFloat(pedido.y) * (height / parseFloat(pedido.imgHeight));
     const yPdf = height - yReal - 40;
 
-    // Insere assinatura
     const pngImage = await pdfDoc.embedPng(fs.readFileSync(pngPath));
     firstPage.drawImage(pngImage, {
       x: xReal,
@@ -101,29 +132,53 @@ app.post("/assinar/:id", upload.single("assinatura"), async (req, res) => {
       color: PDFLib.rgb(0, 0, 0)
     });
 
-    // Salva o novo PDF
     const savedPdfBytes = await pdfDoc.save();
 
-    // Gera nome seguro com base no nome do cliente
     const safeName = decodeURIComponent(pedido.nome).replace(/[^a-zA-Z0-9]/g, '_');
     const signedPath = `uploads/${safeName}-assinado.pdf`;
 
-    // Impede assinaturas repetidas
     if (fs.existsSync(signedPath)) {
       return res.status(400).json({ error: "Documento já foi assinado." });
     }
 
     fs.writeFileSync(signedPath, savedPdfBytes);
 
-    // Retorna link pro cliente baixar
-    res.json({ url: `/${safeName}-assinado.pdf` });
+    // ✅ Agora vamos subir para o Google Drive
+    const drive = google.drive({ version: "v3", auth: oauth2Client });
+
+    const fileMetadata = {
+      name: `${safeName}-assinado.pdf`,
+      parents: ["ID_DA_PASTA_DRIVE"] // ← Substitua pelo ID da sua pasta no GD
+    };
+    const media = {
+      mimeType: "application/pdf",
+      body: fs.createReadStream(signedPath)
+    };
+
+    const response = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media
+    });
+
+    // Compartilha publicamente (opcional)
+    await drive.permissions.create({
+      fileId: response.data.id,
+      requestBody: {
+        role: "reader",
+        type: "anyone"
+      }
+    });
+
+    // Retorna link público do Google Drive
+    const publicLink = `https://drive.google.com/uc?id=${response.data.id}&export=download`;
+    res.json({ url: publicLink });
   } catch (error) {
     console.error("Erro no /assinar:", error.message);
-    res.status(500).json({ error: "Erro ao inserir assinatura" });
+    res.status(500).json({ error: "Erro ao salvar no Google Drive" });
   }
 });
 
-// Nova rota: listar todos os PDFs assinados
+// Nova rota: listar todos os PDFs assinados localmente (não usado no GD)
 app.get("/listar-assinados", (req, res) => {
   const dir = path.join(__dirname, "uploads");
   fs.readdir(dir, (err, files) => {
